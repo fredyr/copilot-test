@@ -4,6 +4,7 @@ module TempMux ( tempMux ) where
 
 import Language.Copilot
 import qualified Prelude as P
+import qualified Copilot.Compile.C99 as C
 
 chATemp :: Stream Int32
 chATemp = extern "e_chATemp" (Just [-15,-10..])
@@ -22,8 +23,8 @@ warningDecay b = y
   where
   cnt  = [0] ++ cnt' :: Stream Word8
   cnt' = if b then 5 
-  			else if (cnt > 0) then cnt - 1
-  				              else 0
+         else if (cnt > 0) then cnt - 1
+              else 0
   y = mux (cnt > 0 || b) true false
 
 counter :: (Eq a, Num a, Typed a) => Stream Bool -> Stream a
@@ -35,27 +36,25 @@ counter reset = y
 
 spec :: Spec
 spec = do
-	 
-	observer "0_debug_chATemp" chATemp 
-	observer "1_debug_chBTemp" chBTemp 
-	observer "2_debug_maxTempAll" maxTempAll
-	observer "3_debug_warning" warning
-	observer "4_debug_warning holded" warningHolded
-
-	where
-		tempLimit = 46
-		maxTempAll = maxTemp chATemp chBTemp
-		warning = tempWarning tempLimit maxTempAll
-		warningHolded = warningDecay warning
-
-
-
+  observer "0_debug_chATemp" chATemp 
+  observer "1_debug_chBTemp" chBTemp 
+  observer "2_debug_maxTempAll" maxTempAll
+  observer "3_debug_warning" warning
+  observer "4_debug_warning_holded" warningHolded
+  trigger "trigger_tempwarning" warningHolded []
+  where
+    tempLimit = 46
+    maxTempAll = maxTemp chATemp chBTemp
+    warning = tempWarning tempLimit maxTempAll
+    warningHolded = warningDecay warning
+ 
 tempMux :: IO ()
 tempMux = do
-	putStrLn "Hello World"
-	prettyPrint spec
-	putStrLn ""
-	interpret 20 spec
-
+  putStrLn "Hello World"
+  prettyPrint spec
+  putStrLn ""
+  interpret 20 spec
+  reify spec >>= C.compile C.defaultParams
+        
 main :: IO()
 main = tempMux 
