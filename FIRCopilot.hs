@@ -20,6 +20,7 @@ near4 = [4,4,4.2,4,4,3.8] ++ near4
 natsDelayed :: Stream Float
 natsDelayed = [0,0,0,0,0] ++ nats
 
+
 fir :: (Eq a, Num a, Typed a) => [Stream a] -> Stream a -> Stream a
 fir coffs s =  P.foldl1 (+) $ P.zipWith (*) coffs $ take n s
 	where n = length coffs
