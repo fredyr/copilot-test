@@ -4,42 +4,68 @@ module Temp where
 import Language.Copilot
 import qualified Copilot.Compile.C99 as C
 import qualified Utils as U
+import qualified Prelude as P
 
 sensorDataTest = Just sensorData
   where
     sensorData = map addN [0, 43..]
     addN n = map (+ n) [600..607]
 
-sensorDataArray :: Stream Int32 -> Stream Int32
+sensorDataArray :: Stream Word32 -> Stream Word32
 sensorDataArray idx = externArray "temp_sensor_data" idx 8 sensorDataTest
 
+ntcPSU_lut :: Stream Word32 -> Stream Int32
+ntcPSU_lut idx = externArray "NTC_PSU_lut" idx 17 ntcPSU_lut_test
+
+ntcPSU_lut_test = (Just $ repeat [162070, 136700, 115598, 98282, 84266, 73065, 64197, 57175, 51517, 46737, 42351, 37875, 32825, 26716, 19063, 9382, -2809])
+
 -- CHIP TEMP SENSORS
-chipTempInternal :: Stream Int32
-chipTempInternal = sensorDataArray (constI32 0)
+chipTempInternal :: Stream Word32
+chipTempInternal = sensorDataArray (constW32 0)
 
-chipTempExternal :: Stream Int32
-chipTempExternal = sensorDataArray (constI32 1)
+chipTempExternal :: Stream Word32
+chipTempExternal = sensorDataArray (constW32 1)
 
-maxChipTemp :: Stream Int32
+maxChipTemp :: Stream Word32
 maxChipTemp = U.max chipTempExternal chipTempInternal
 
 -- ADC TEMP SENSORS
-adcTempChanB :: Stream Int32
-adcTempChanB = sensorDataArray (constI32 3)
+adcTempChanB :: Stream Word32
+adcTempChanB = sensorDataArray (constW32 3)
+
+adcRawTempChanB :: Stream Word32
+adcRawTempChanB = sensorDataArray (constW32 3)
+
+adcRawTempSplit :: Stream Word32 -> (Stream Word32, Stream Int32)
+adcRawTempSplit raw = (idx, offset)
+  where
+    idx = raw .>>. (constW32 8)
+    offset = unsafeCast $ raw .&. 0xff
+
+adcRawTransfer :: (Stream Word32, Stream Int32) -> Stream Word32
+adcRawTransfer (idx, offset) = cast y
+  where
+    y1 = ntcPSU_lut idx
+    y0 = ntcPSU_lut (idx+1)
+    --offset' = cast offset
+    y = y0 + ((y1 - y0) * offset) `div` 256
 
 adcTemps = foldr1 (||) chans
   where
     chans = map f [2, 3, 4, 5]
-    f = ((U.hysteresis 700 1000) . sensorDataArray . constI32)
+    f = ((U.hysteresis 700 1000) . sensorDataArray . constW32)
 
-s :: Stream Int32
+s :: Stream Word32
 s = extern "s" (Just [10, 20..])
 
-t :: Stream Int32
+t :: Stream Word32
 t = extern "t" (Just [73, 70..])
 
-u :: Stream Int32
+u :: Stream Word32
 u = extern "t" (Just [300, 350..])
+
+v :: Stream Word32
+v = extern "t" (Just [14, 234..])
 
 testSpec :: Spec
 testSpec = do
@@ -47,18 +73,24 @@ testSpec = do
   -- observer "chipTempExternal" chipTempExternal
   -- observer "adcTempChanB" adcTempChanB
   -- observer "maxChipTemp" maxChipTemp
-  observer "s" s
-  observer "s_hyst" shyst
-  observer "s_imp" simp
-  observer "t" t
-  observer "t_hyst" thyst
-  observer "t_imp" timp
+  -- observer "s" s
+  --observer "s_hyst" shyst
+  --observer "s_imp" simp
+  --observer "t" t
+  --observer "t_hyst" thyst
+  --observer "t_imp" timp
 
-  observer "u" u
-  observer "u_hyst" uhyst
-  observer "m_hyst" mhyst
-  observer "adcTemps" adcTemps
+  --observer "u" u
+  --observer "u_hyst" uhyst
+  --observer "m_hyst" mhyst
+  --observer "adcTemps" adcTemps
   -- trigger "s_muteAllChannels" simp [arg shyst]
+  observer "v" v
+  observer "s" s
+  observer "adcRawTransfer" (adcRawTransfer aRSplit)
+  observer "0_adcRawTempSplit_fst" $ fst aRSplit
+  observer "0_adcRawTempSplit_snd" $ snd aRSplit
+
   trigger "m_muteAllChannels" mimp [arg mhyst]
   where
     shyst = U.hysteresis 45 60 s
@@ -68,6 +100,8 @@ testSpec = do
     simp  = U.impulse shyst
     timp  = U.impulse thyst
     mimp  = U.impulse mhyst
+    aRSplit = adcRawTempSplit s
+    del = div u 123
 
 tempSpec :: Spec
 tempSpec = do
