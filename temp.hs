@@ -1,4 +1,5 @@
 {-# LANGUAGE RebindableSyntax #-}
+
 module Temp where
 
 import Language.Copilot
@@ -29,26 +30,29 @@ chipTempExternal = sensorDataArray (constW32 1)
 maxChipTemp :: Stream Word32
 maxChipTemp = U.max chipTempExternal chipTempInternal
 
--- ADC TEMP SENSORS
+--------------------------------------------------------------------------------
+-- | ADC TEMP SENSORS
+
 adcTempChanB :: Stream Word32
 adcTempChanB = sensorDataArray (constW32 3)
 
 adcRawTempChanB :: Stream Word32
 adcRawTempChanB = sensorDataArray (constW32 3)
 
-adcRawTempSplit :: Stream Word32 -> (Stream Word32, Stream Int32)
+adcRawTempSplit :: Stream Word32 -> (Stream Word32, Stream Word32)
 adcRawTempSplit raw = (idx, offset)
   where
     idx = raw .>>. (constW32 8)
-    offset = unsafeCast $ raw .&. 0xff
+    offset = raw .&. 0xff
 
-adcRawTransfer :: (Stream Word32, Stream Int32) -> Stream Word32
+adcRawTransfer :: (Stream Word32, Stream Word32) -> Stream Int32
 adcRawTransfer (idx, offset) = cast y
   where
     y1 = ntcPSU_lut idx
     y0 = ntcPSU_lut (idx+1)
     --offset' = cast offset
-    y = y0 + ((y1 - y0) * offset) `div` 256
+    offset' = 3
+    y = y0 + ((y1 - y0) * offset') `div` 256
 
 adcTemps = foldr1 (||) chans
   where
@@ -64,8 +68,22 @@ t = extern "t" (Just [73, 70..])
 u :: Stream Word32
 u = extern "t" (Just [300, 350..])
 
-v :: Stream Word32
-v = extern "t" (Just [14, 234..])
+f :: Stream Float
+f = extern "f" (Just [11.0, 15.7 ..])
+--------------------------------------------------------------------------------
+-- | FAN CONTROL
+
+fanControl :: Stream Float -> Stream Bool -> Stream Float
+fanControl temp powerOn = if powerOn then y else 0.0
+  where
+    y = U.clamp idleDuty maxDuty $ k * temp + m
+    m = idleDuty - influenceTemp * k
+    k = (maxDuty - idleDuty) / (maxTemp - influenceTemp)
+    idleDuty      = constF 49.0
+    maxDuty       = constF 100.0
+    influenceTemp = constF 50.0 -- Point where fan increases from idle
+    maxTemp       = constF 76.0 -- Point where fan is at max
+
 
 testSpec :: Spec
 testSpec = do
@@ -85,12 +103,13 @@ testSpec = do
   --observer "m_hyst" mhyst
   --observer "adcTemps" adcTemps
   -- trigger "s_muteAllChannels" simp [arg shyst]
-  observer "v" v
   observer "s" s
   observer "adcRawTransfer" (adcRawTransfer aRSplit)
   observer "0_adcRawTempSplit_fst" $ fst aRSplit
   observer "0_adcRawTempSplit_snd" $ snd aRSplit
 
+  observer "f" f
+  observer "fan" $ fanControl f true
   trigger "m_muteAllChannels" mimp [arg mhyst]
   where
     shyst = U.hysteresis 45 60 s

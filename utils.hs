@@ -1,15 +1,18 @@
 {-# LANGUAGE RebindableSyntax #-}
 module Utils where
-
 import Language.Copilot
--- import qualified Prelude as P
--- import qualified Copilot.Compile.C99 as C
+
 
 natsW32 :: Stream Word32
 natsW32 = [0] ++ (1 + natsW32)
 
 max :: (Typed a, Ord a) => Stream a -> Stream a -> Stream a
 max x y = mux ( x >= y ) x y
+
+min :: (Typed a, Ord a) => Stream a -> Stream a -> Stream a
+min x y = mux ( x < y ) x y
+
+clamp low high val = Utils.min high $ Utils.max low val
 
 warn :: (Typed a, Ord a) => Stream a -> Stream a -> Stream Bool
 warn limit temp = temp > limit
