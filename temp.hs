@@ -1,4 +1,5 @@
 {-# LANGUAGE RebindableSyntax #-}
+
 module Temp where
 
 import Language.Copilot
@@ -13,7 +14,9 @@ sensorDataTest = Just sensorData
 sensorDataArray :: Stream Int32 -> Stream Int32
 sensorDataArray idx = externArray "temp_sensor_data" idx 8 sensorDataTest
 
--- CHIP TEMP SENSORS
+--------------------------------------------------------------------------------
+-- | CHIP TEMP SENSORS
+
 chipTempInternal :: Stream Int32
 chipTempInternal = sensorDataArray (constI32 0)
 
@@ -23,7 +26,9 @@ chipTempExternal = sensorDataArray (constI32 1)
 maxChipTemp :: Stream Int32
 maxChipTemp = U.max chipTempExternal chipTempInternal
 
--- ADC TEMP SENSORS
+--------------------------------------------------------------------------------
+-- | ADC TEMP SENSORS
+
 adcTempChanB :: Stream Int32
 adcTempChanB = sensorDataArray (constI32 3)
 
@@ -41,24 +46,42 @@ t = extern "t" (Just [73, 70..])
 u :: Stream Int32
 u = extern "t" (Just [300, 350..])
 
+f :: Stream Float
+f = extern "f" (Just [11.0, 15.7 ..])
+--------------------------------------------------------------------------------
+-- | FAN CONTROL
+
+fanControl :: Stream Float -> Stream Bool -> Stream Float
+fanControl temp powerOn = if powerOn then y else 0.0
+  where
+    y = U.clamp idleDuty maxDuty $ k * temp + m
+    m = idleDuty - influenceTemp * k
+    k = (maxDuty - idleDuty) / (maxTemp - influenceTemp)
+    idleDuty      = constF 49.0
+    maxDuty       = constF 100.0
+    influenceTemp = constF 50.0 -- Point where fan increases from idle
+    maxTemp       = constF 76.0 -- Point where fan is at max
+
+
 testSpec :: Spec
 testSpec = do
   -- observer "chipTempInternal" chipTempInternal
   -- observer "chipTempExternal" chipTempExternal
   -- observer "adcTempChanB" adcTempChanB
   -- observer "maxChipTemp" maxChipTemp
-  observer "s" s
-  observer "s_hyst" shyst
-  observer "s_imp" simp
-  observer "t" t
-  observer "t_hyst" thyst
-  observer "t_imp" timp
-
-  observer "u" u
-  observer "u_hyst" uhyst
-  observer "m_hyst" mhyst
-  observer "adcTemps" adcTemps
+  -- observer "s" s
+  -- observer "s_hyst" shyst
+  -- observer "s_imp" simp
+  -- observer "t" t
+  -- observer "t_hyst" thyst
+  -- observer "t_imp" timp
+  -- observer "u" u
+  -- observer "u_hyst" uhyst
+  -- observer "m_hyst" mhyst
+  -- observer "adcTemps" adcTemps
   -- trigger "s_muteAllChannels" simp [arg shyst]
+  observer "f" f
+  observer "fan" $ fanControl f true
   trigger "m_muteAllChannels" mimp [arg mhyst]
   where
     shyst = U.hysteresis 45 60 s
