@@ -15,7 +15,6 @@ sensorDataTest = Just sensorData
 sensorDataArray :: Stream Word32 -> Stream Word32
 sensorDataArray idx = externArray "temp_sensor_data" idx 8 sensorDataTest
 
-
 ntcPSU_lut :: Stream Word32 -> Stream Float
 ntcPSU_lut idx = externArray "NTC_PSU_lut" idx 17 ntcPSU_lut_test
 ntcPSU_lut_test = (Just $ repeat [185.00, 141.86, 115.66, 95.57, 83.00, 73.66, 65.99, 59.32, 53.28, 47.60, 42.13, 36.73, 31.15, 25.07, 18.76, 10.82, -4.42])
@@ -27,7 +26,6 @@ ntcAMP_lut_test = (Just $ repeat [178.00, 149.00, 128.57, 112.68, 100.97, 91.56,
 ntcAMBIENT_lut :: Stream Word32 -> Stream Float
 ntcAMBIENT_lut idx = externArray "NTC_PSU_lut" idx 17 ntcAMBIENT_lut_test
 ntcAMBIENT_lut_test = (Just $ repeat [147.68, 97.16, 73.74, 60.56, 51.19, 43.77, 37.48, 31.90, 26.77, 21.91, 17.19, 12.48, 7.64, 2.51, -3.17, -9.84, -18.54])
-
 
 -- CHIP TEMP SENSORS
 chipTempInternal :: Stream Word32
@@ -42,34 +40,51 @@ maxChipTemp = U.max chipTempExternal chipTempInternal
 --------------------------------------------------------------------------------
 -- | ADC TEMP SENSORS
 
-adcTempChanB :: Stream Word32
-adcTempChanB = sensorDataArray (constW32 3)
+adcRaw_tempChanA :: Stream Word32
+adcRaw_tempChanA = U.delay $ sensorDataArray (constW32 2)
+adcRaw_tempChanB = U.delay $ sensorDataArray (constW32 3)
+adcRaw_tempChanC = U.delay $ sensorDataArray (constW32 4)
+adcRaw_tempChanD = U.delay $ sensorDataArray (constW32 5)
 
-adcRawTempChanB :: Stream Word32
-adcRawTempChanB = sensorDataArray (constW32 3)
+adcRaw_tempPSU1 = U.delay $ sensorDataArray (constW32 6)
+adcRaw_tempPSU2 = U.delay $ sensorDataArray (constW32 7)
 
-adcRawTempSplit :: Stream Word32 -> (Stream Word32, Stream Float)
-adcRawTempSplit raw = (idx, offset)
+adcRaw_tempAMBIENT = U.delay $ sensorDataArray (constW32 8)
+
+adcTempChanA :: Stream Float
+adcTempChanA = adcRaw_transform ntcAMP_lut $ adcRaw_split adcRaw_tempChanA
+adcTempChanB = adcRaw_transform ntcAMP_lut $ adcRaw_split adcRaw_tempChanB
+adcTempChanC = adcRaw_transform ntcAMP_lut $ adcRaw_split adcRaw_tempChanC
+adcTempChanD = adcRaw_transform ntcAMP_lut $ adcRaw_split adcRaw_tempChanD
+
+adcTempPSU1 = adcRaw_transform ntcPSU_lut $ adcRaw_split adcRaw_tempPSU1
+adcTempPSU2 = adcRaw_transform ntcPSU_lut $ adcRaw_split adcRaw_tempPSU2
+
+adcTempAMBIENT = adcRaw_transform ntcAMBIENT_lut $ adcRaw_split adcRaw_tempAMBIENT
+
+adcTemp_MaxChan = foldr1 U.max [adcTempChanA, adcTempChanB, adcTempChanC, adcTempChanD]
+adcTemp_MaxPSU  = U.max adcTempPSU1 adcTempPSU2
+
+
+adcRaw_split :: Stream Word32 -> (Stream Word32, Stream Float)
+adcRaw_split raw = (idx, offset)
   where
     -- Input from the ADC is 12 bits.
     -- The top 4 bits are used as an index in a lockup table.
-    -- The last 8 bits are converted to float and used for interpolation.
+    -- The last 8 bits are converted to normalized float and used for interpolation.
     rawC = U.clamp 0 4095 raw
     idx = rawC .>>. constW32 8
     offset' = unsafeCast $ rawC .&. 0xff
     offset = offset' / 256.0
 
-adcRawTransform :: (Stream Word32 -> Stream Float) -> (Stream Word32, Stream Float) -> Stream Float
-adcRawTransform lut (idx, offset) = y
+adcRaw_transform :: (Stream Word32 -> Stream Float) -> (Stream Word32, Stream Float) -> Stream Float
+adcRaw_transform lut (idx, offset) = y
   where
     y0 = lut idx
     y1 = lut (idx+1)
     y = y0 + ((y1 - y0) * offset)
 
-adcTemps = foldr1 (||) chans
-  where
-    chans = map f [2, 3, 4, 5]
-    f = ((U.hysteresis 700 1000) . sensorDataArray . constW32)
+----------------------------------------------
 
 s :: Stream Word32
 s = extern "s" (Just [15, 30..])
@@ -99,10 +114,10 @@ fanControl temp powerOn = if powerOn then y else 0.0
 
 testSpec :: Spec
 testSpec = do
-  -- observer "chipTempInternal" chipTempInternal
-  -- observer "chipTempExternal" chipTempExternal
-  -- observer "adcTempChanB" adcTempChanB
-  -- observer "maxChipTemp" maxChipTemp
+  observer "chipTempInternal" chipTempInternal
+  observer "chipTempExternal" chipTempExternal
+  --observer "adcTempChanB" adcTempChanB
+  observer "maxChipTemp" maxChipTemp
   -- observer "s" s
   --observer "s_hyst" shyst
   --observer "s_imp" simp
@@ -113,7 +128,6 @@ testSpec = do
   --observer "u" u
   --observer "u_hyst" uhyst
   --observer "m_hyst" mhyst
-  --observer "adcTemps" adcTemps
   -- trigger "s_muteAllChannels" simp [arg shyst]
   observer "u" u
 
@@ -121,6 +135,7 @@ testSpec = do
   observer "f" f
   observer "fan" $ fanControl f true
   trigger "m_muteAllChannels" mimp [arg mhyst]
+  trigger "de" (true) [arg adcTempChanB]
   where
     shyst = U.hysteresis 45 60 s
     thyst = U.hysteresis 45 60 t
@@ -133,20 +148,20 @@ testSpec = do
 
 testSpec_ADCTemp :: Spec
 testSpec_ADCTemp = do
-  observer "0__fast" fast
-  observer "1_TempSplit_fst" $ fst aRSplit_fast
-  observer "2_TempSplit_snd" $ snd aRSplit_fast
-  observer "3_Transform" $ adcRawTransform ntcPSU_lut aRSplit_fast
+  observer "0__fast" slow
+  observer "1_TempSplit_fst" $ fst aRSplit_slow
+  observer "2_TempSplit_snd" $ snd aRSplit_slow
+  observer "3_Transform" $ adcRaw_transform ntcPSU_lut aRSplit_slow
 
-  observer "4_slow" slow
-  observer "5_TempSplit_fst" $ fst aRSplit_slow
-  observer "6_TempSplit_snd" $ snd aRSplit_slow
-  observer "7_Transform" $ adcRawTransform ntcPSU_lut aRSplit_slow
+  observer "4_slow" fast
+  observer "5_TempSplit_fst" $ fst aRSplit_fast
+  observer "6_TempSplit_snd" $ snd aRSplit_fast
+  observer "7_Transform" $ adcRaw_transform ntcPSU_lut aRSplit_fast
   where
     fast = [0] ++ fast + 123
-    slow = [0] ++ slow + 7
-    aRSplit_fast = adcRawTempSplit fast
-    aRSplit_slow = adcRawTempSplit slow
+    slow = [0] ++ slow + 7 :: Stream Word32
+    aRSplit_fast = adcRaw_split fast
+    aRSplit_slow = adcRaw_split slow
 
 testSpec_Fan :: Spec
 testSpec_Fan = do
@@ -157,8 +172,9 @@ tempSpec :: Spec
 tempSpec = do
   trigger "muteAllChannels" imp [arg hyst]
   where chip = U.hysteresis 40 45 maxChipTemp
-        adc  = U.hysteresis 700 1000 adcTempChanB
-        hyst = chip || adc
+        adcChan  = U.hysteresis 78 80 adcTemp_MaxChan
+        adcPSU = U.hysteresis 78 80 adcTemp_MaxPSU
+        hyst = chip || adcChan || adcPSU 
         imp  = U.impulse hyst
 
 runTestSpec = do

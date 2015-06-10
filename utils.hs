@@ -3,8 +3,8 @@ module Utils where
 import Language.Copilot
 
 
-natsW32 :: Stream Word32
-natsW32 = [0] ++ (1 + natsW32)
+nats :: (Num a, Typed a, Eq a) => Stream a
+nats = [0] ++ (1 + nats)
 
 max :: (Typed a, Ord a) => Stream a -> Stream a -> Stream a
 max x y = mux ( x >= y ) x y
@@ -41,3 +41,7 @@ impulse x = y
   where
     x' = [True] ++ x
     y = (x' /= x)
+
+-- 
+delay :: (Num a, Typed a) => Stream a -> Stream a
+delay s = [0] ++ s
