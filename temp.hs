@@ -15,17 +15,26 @@ sensorDataTest = Just sensorData
 sensorDataArray :: Stream Word32 -> Stream Word32
 sensorDataArray idx = externArray "temp_sensor_data" idx 8 sensorDataTest
 
-ntcPSU_lut :: Stream Word32 -> Stream Float
-ntcPSU_lut idx = externArray "NTC_PSU_lut" idx 17 ntcPSU_lut_test
-ntcPSU_lut_test = (Just $ repeat [185.00, 141.86, 115.66, 95.57, 83.00, 73.66, 65.99, 59.32, 53.28, 47.60, 42.13, 36.73, 31.15, 25.07, 18.76, 10.82, -4.42])
+--ntcPSU_lut :: Stream Word32 -> Stream Float
+--ntcPSU_lut idx = externArray "NTC_PSU_lut" idx 17 ntcPSU_lut_test
+--ntcPSU_lut_test = (Just $ repeat [185.00, 141.86, 115.66, 95.57, 83.00, 73.66, 65.99, 59.32, 53.28, 47.60, 42.13, 36.73, 31.15, 25.07, 18.76, 10.82, -4.42])
 
-ntcAMP_lut :: Stream Word32 -> Stream Float
-ntcAMP_lut idx = externArray "NTC_PSU_lut" idx 17 ntcAMP_lut_test
-ntcAMP_lut_test = (Just $ repeat [178.00, 149.00, 128.57, 112.68, 100.97, 91.56, 83.47, 76.19, 69.37, 62.74, 56.08, 49.16, 41.65, 32.97, 21.92, 4.20, -85.40])
+--ntcAMP_lut :: Stream Word32 -> Stream Float
+--ntcAMP_lut idx = externArray "NTC_PSU_lut" idx 17 ntcAMP_lut_test
+--ntcAMP_lut_test = (Just $ repeat [178.00, 149.00, 128.57, 112.68, 100.97, 91.56, 83.47, 76.19, 69.37, 62.74, 56.08, 49.16, 41.65, 32.97, 21.92, 4.20, -85.40])
 
-ntcAMBIENT_lut :: Stream Word32 -> Stream Float
-ntcAMBIENT_lut idx = externArray "NTC_PSU_lut" idx 17 ntcAMBIENT_lut_test
-ntcAMBIENT_lut_test = (Just $ repeat [147.68, 97.16, 73.74, 60.56, 51.19, 43.77, 37.48, 31.90, 26.77, 21.91, 17.19, 12.48, 7.64, 2.51, -3.17, -9.84, -18.54])
+--ntcAMBIENT_lut :: Stream Word32 -> Stream Float
+--ntcAMBIENT_lut idx = externArray "NTC_PSU_lut" idx 17 ntcAMBIENT_lut_test
+--ntcAMBIENT_lut_test = (Just $ repeat [147.68, 97.16, 73.74, 60.56, 51.19, 43.77, 37.48, 31.90, 26.77, 21.91, 17.19, 12.48, 7.64, 2.51, -3.17, -9.84, -18.54])
+
+ntcPSU_extern_lut :: Stream Word32 -> Stream Float
+ntcPSU_extern_lut inx = externFun "ntcPSU_lut" [ arg inx ] Nothing
+
+ntcAMP_extern_lut :: Stream Word32 -> Stream Float
+ntcAMP_extern_lut inx = externFun "ntcAMP_lut" [ arg inx ] Nothing
+
+ntcAMBIENT_extern_lut :: Stream Word32 -> Stream Float
+ntcAMBIENT_extern_lut inx = externFun "ntcAMBIENT_lut" [ arg inx ] Nothing
 
 -- CHIP TEMP SENSORS
 chipTempInternal :: Stream Word32
@@ -34,8 +43,29 @@ chipTempInternal = sensorDataArray (constW32 0)
 chipTempExternal :: Stream Word32
 chipTempExternal = sensorDataArray (constW32 1)
 
+
+chipTempInternal2 :: Stream Word32
+chipTempInternal2 = sensorDataArray (constW32 2)
+
+chipTempExternal2 :: Stream Word32
+chipTempExternal2 = sensorDataArray (constW32 3)
+
+
+chipTempInternal3 :: Stream Word32
+chipTempInternal3 = sensorDataArray (constW32 4)
+
+chipTempExternal3 :: Stream Word32
+chipTempExternal3 = sensorDataArray (constW32 5)
+
+
+chipTempInternal4 :: Stream Word32
+chipTempInternal4 = sensorDataArray (constW32 6)
+
+chipTempExternal4 :: Stream Word32
+chipTempExternal4 = sensorDataArray (constW32 7)
+
 maxChipTemp :: Stream Word32
-maxChipTemp = U.max chipTempExternal chipTempInternal
+maxChipTemp = foldr1 U.max [chipTempExternal, chipTempInternal] --, chipTempExternal2, chipTempInternal2, chipTempExternal3, chipTempInternal3, chipTempExternal4, chipTempInternal4]
 
 --------------------------------------------------------------------------------
 -- | ADC TEMP SENSORS
@@ -52,15 +82,15 @@ adcRaw_tempPSU2 = U.delay $ sensorDataArray (constW32 7)
 adcRaw_tempAMBIENT = U.delay $ sensorDataArray (constW32 8)
 
 adcTempChanA :: Stream Float
-adcTempChanA = adcRaw_transform ntcAMP_lut $ adcRaw_split adcRaw_tempChanA
-adcTempChanB = adcRaw_transform ntcAMP_lut $ adcRaw_split adcRaw_tempChanB
-adcTempChanC = adcRaw_transform ntcAMP_lut $ adcRaw_split adcRaw_tempChanC
-adcTempChanD = adcRaw_transform ntcAMP_lut $ adcRaw_split adcRaw_tempChanD
+adcTempChanA = adcRaw_transform ntcAMP_extern_lut $ adcRaw_split adcRaw_tempChanA
+adcTempChanB = adcRaw_transform ntcAMP_extern_lut $ adcRaw_split adcRaw_tempChanB
+adcTempChanC = adcRaw_transform ntcAMP_extern_lut $ adcRaw_split adcRaw_tempChanC
+adcTempChanD = adcRaw_transform ntcAMP_extern_lut $ adcRaw_split adcRaw_tempChanD
 
-adcTempPSU1 = adcRaw_transform ntcPSU_lut $ adcRaw_split adcRaw_tempPSU1
-adcTempPSU2 = adcRaw_transform ntcPSU_lut $ adcRaw_split adcRaw_tempPSU2
+adcTempPSU1 = adcRaw_transform ntcPSU_extern_lut $ adcRaw_split adcRaw_tempPSU1
+adcTempPSU2 = adcRaw_transform ntcPSU_extern_lut $ adcRaw_split adcRaw_tempPSU2
 
-adcTempAMBIENT = adcRaw_transform ntcAMBIENT_lut $ adcRaw_split adcRaw_tempAMBIENT
+adcTempAMBIENT = adcRaw_transform ntcAMBIENT_extern_lut $ adcRaw_split adcRaw_tempAMBIENT
 
 adcTemp_MaxChan = foldr1 U.max [adcTempChanA, adcTempChanB, adcTempChanC, adcTempChanD]
 adcTemp_MaxPSU  = U.max adcTempPSU1 adcTempPSU2
@@ -151,12 +181,12 @@ testSpec_ADCTemp = do
   observer "0__fast" slow
   observer "1_TempSplit_fst" $ fst aRSplit_slow
   observer "2_TempSplit_snd" $ snd aRSplit_slow
-  observer "3_Transform" $ adcRaw_transform ntcPSU_lut aRSplit_slow
+--  observer "3_Transform" $ adcRaw_transform ntcPSU_lut aRSplit_slow
 
   observer "4_slow" fast
   observer "5_TempSplit_fst" $ fst aRSplit_fast
   observer "6_TempSplit_snd" $ snd aRSplit_fast
-  observer "7_Transform" $ adcRaw_transform ntcPSU_lut aRSplit_fast
+--  observer "7_Transform" $ adcRaw_transform ntcPSU_lut aRSplit_fast
   where
     fast = [0] ++ fast + 123
     slow = [0] ++ slow + 7 :: Stream Word32

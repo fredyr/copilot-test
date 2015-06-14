@@ -1,8 +1,8 @@
-AT=../atom
-CP=../copilot-src/Copilot
+#AT=../atom
+#CP=../copilot-src/Copilot
+CP=../Copilot
 
 PACKAGES= \
-  $(AT) \
   $(CP)/lib/copilot-core \
   $(CP)/lib/copilot-language \
   $(CP)/lib/copilot-libraries \
