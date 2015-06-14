@@ -1,12 +1,18 @@
 {-# LANGUAGE RebindableSyntax #-}
 module Utils where
-
 import Language.Copilot
--- import qualified Prelude as P
--- import qualified Copilot.Compile.C99 as C
+
+
+nats :: (Num a, Typed a, Eq a) => Stream a
+nats = [0] ++ (1 + nats)
 
 max :: (Typed a, Ord a) => Stream a -> Stream a -> Stream a
 max x y = mux ( x >= y ) x y
+
+min :: (Typed a, Ord a) => Stream a -> Stream a -> Stream a
+min x y = mux ( x < y ) x y
+
+clamp low high val = Utils.min high $ Utils.max low val
 
 warn :: (Typed a, Ord a) => Stream a -> Stream a -> Stream Bool
 warn limit temp = temp > limit
@@ -35,3 +41,7 @@ impulse x = y
   where
     x' = [True] ++ x
     y = (x' /= x)
+
+-- 
+delay :: (Num a, Typed a) => Stream a -> Stream a
+delay s = [0] ++ s
