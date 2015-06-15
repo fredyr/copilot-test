@@ -28,13 +28,13 @@ sensorDataArray idx = externArray "temp_sensor_data" idx 8 sensorDataTest
 --ntcAMBIENT_lut_test = (Just $ repeat [147.68, 97.16, 73.74, 60.56, 51.19, 43.77, 37.48, 31.90, 26.77, 21.91, 17.19, 12.48, 7.64, 2.51, -3.17, -9.84, -18.54])
 
 ntcPSU_extern_lut :: Stream Word32 -> Stream Float
-ntcPSU_extern_lut inx = externFun "ntcPSU_lut" [ arg inx ] Nothing
+ntcPSU_extern_lut inx = externFun "rawADC_transform_PSU" [ arg inx ] Nothing
 
 ntcAMP_extern_lut :: Stream Word32 -> Stream Float
-ntcAMP_extern_lut inx = externFun "ntcAMP_lut" [ arg inx ] Nothing
+ntcAMP_extern_lut inx = externFun "rawADC_transform_AMP" [ arg inx ] Nothing
 
 ntcAMBIENT_extern_lut :: Stream Word32 -> Stream Float
-ntcAMBIENT_extern_lut inx = externFun "ntcAMBIENT_lut" [ arg inx ] Nothing
+ntcAMBIENT_extern_lut inx = externFun "rawADC_transform_AMBIENT" [ arg inx ] Nothing
 
 -- CHIP TEMP SENSORS
 chipTempInternal :: Stream Word32
@@ -102,7 +102,7 @@ adcRaw_split raw = (idx, offset)
     -- Input from the ADC is 12 bits.
     -- The top 4 bits are used as an index in a lockup table.
     -- The last 8 bits are converted to normalized float and used for interpolation.
-    rawC = U.clamp 0 4095 raw
+    rawC = raw -- U.clamp 0 4095 raw
     idx = rawC .>>. constW32 8
     offset' = unsafeCast $ rawC .&. 0xff
     offset = offset' / 256.0
