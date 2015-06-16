@@ -7,30 +7,33 @@ import qualified Copilot.Compile.C99 as C
 import qualified Utils as U
 import qualified Prelude as P
 
-chipDataTest = Just sensorData
+chipDataTest = Just chipData
   where
-    sensorData = map addN [0, 43..]
-    addN n = map (+ n) [600..607]
+    chipData = map addN [0, 2..]
+    addN n = map (+ n) [22..23]
 
-adcDataTest = Just sensorData
+adcDataTest = Just adcData
   where
-    sensorData = map addN [0, 43..]
-    addN n = map (+ n) [600..607]
+    adcData = map addN [0, 43..]
+    addN n = map (+ n) [100, 200..800]
+
+lutData :: Stream Int32
+lutData = [22] ++ lutData + 3
 
 chip_DataArray :: Stream Word32 -> Stream Int32
-chip_DataArray idx = externArray "temp_chip_data" idx 2 adcDataTest
+chip_DataArray idx = externArray "temp_chip_data" idx 2 chipDataTest
 
 adc_DataArray :: Stream Word32 -> Stream Word32
-adc_DataArray idx = externArray "temp_adc_data" idx 8 chipDataTest
+adc_DataArray idx = externArray "temp_adc_data" idx 8 adcDataTest
 
 ntcPSU_extern_lut :: Stream Word32 -> Stream Int32
-ntcPSU_extern_lut inx = externFun "rawADC_transform_PSU" [ arg inx ] Nothing
+ntcPSU_extern_lut raw = externFun "rawADC_transform_PSU" [ arg raw ] (Just $ unsafeCast (raw) + lutData)
 
 ntcAMP_extern_lut :: Stream Word32 -> Stream Int32
-ntcAMP_extern_lut inx = externFun "rawADC_transform_AMP" [ arg inx ] Nothing
+ntcAMP_extern_lut raw = externFun "rawADC_transform_AMP" [ arg raw ] (Just $ unsafeCast (raw `div` 40) + lutData)
 
 ntcAMBIENT_extern_lut :: Stream Word32 -> Stream Int32
-ntcAMBIENT_extern_lut inx = externFun "rawADC_transform_AMBIENT" [ arg inx ] Nothing
+ntcAMBIENT_extern_lut raw = externFun "rawADC_transform_AMBIENT" [ arg raw ] (Just $ unsafeCast raw + lutData)
 
 --------------------------------------------------------------------------------
 
@@ -137,6 +140,17 @@ testSpec = do
     timp  = U.impulse thyst
     mimp  = U.impulse mhyst
     
+testSpec2 :: Spec
+testSpec2 = do
+  observer "chip_DataArray" chipTempExternal
+  observer "AMPtempA" (adcTempAMP !! 0)
+  observer "AMPtempB" (adcTempAMP !! 1)
+  observer "AMPtempC" (adcTempAMP !! 2)
+  observer "AMPtempD" (adcTempAMP !! 3)
+  observer "adcHystAMP" adcHystAMP
+  trigger "muteAllChannels" imp [arg adcHystAMP]
+  where 
+        imp  = U.impulse adcHystAMP
 
 testSpec_Fan :: Spec
 testSpec_Fan = do
@@ -161,6 +175,9 @@ tempSpec = do
 
 runTestSpec = do
   interpret 20 testSpec
+
+runTestSpec2 = do
+  interpret 20 testSpec2
 
 runTestSpec_Fan = do
   interpret 20 testSpec_Fan
