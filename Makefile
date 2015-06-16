@@ -1,8 +1,6 @@
-AT=../atom
-CP=../copilot-src/Copilot
+CP=../copilot-unsafe/Copilot/
 
 PACKAGES= \
-  $(AT) \
   $(CP)/lib/copilot-core \
   $(CP)/lib/copilot-language \
   $(CP)/lib/copilot-libraries \
