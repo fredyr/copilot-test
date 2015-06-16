@@ -9,6 +9,16 @@ nats = [0] ++ (1 + nats)
 max :: (Typed a, Ord a) => Stream a -> Stream a -> Stream a
 max x y = mux ( x >= y ) x y
 
+maxmax :: (Num a, Typed a, Ord a) => [Stream a] -> Stream a
+maxmax [] = error "Error in maxmax: list must be nonempty."
+maxmax ls = maxmax' ls 0
+  where
+    maxmax' :: (Num a, Typed a, Ord a) => [Stream a] -> Stream a -> Stream a
+    maxmax' [] candidate = candidate
+    maxmax' (x:xs) candidate =
+      local (if x > candidate then x else candidate) $ \ candidate' ->
+        maxmax' xs candidate'
+
 min :: (Typed a, Ord a) => Stream a -> Stream a -> Stream a
 min x y = mux ( x < y ) x y
 

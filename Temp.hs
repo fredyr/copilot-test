@@ -64,7 +64,7 @@ adcTempAMBIENT :: [Stream Int32]
 adcTempAMBIENT = [(ntcAMP_extern_lut . U.delay . adc_DataArray $ constW32 8)]
 
 
-
+allTemp = adcTempAMP P.++ adcTempPSU P.++ adcTempAMBIENT P.++ [chipTempExternal, chipTempInternal]
 -- Temp protection with hysteresis
 
 protectHyst :: Stream Int32 -> Stream Int32 -> [Stream Int32] -> Stream Bool
@@ -172,6 +172,30 @@ tempSpec = do
 
   where 
         imp  = U.impulse allHyst
+
+f1 :: Stream Int32
+f1 = [45] ++ f1 - 5
+f2 :: Stream Int32
+f2 = [20] ++ f2 - 1
+f3 :: Stream Int32
+f3 = [3] ++ f3 + 5
+f4 :: Stream Int32
+f4 = [13] ++ f4 + 2
+
+fList = [f1, f2, f3, f4]
+
+testSpec_lists :: Spec
+testSpec_lists = do
+  observer "max1" $ foldl1 U.max fList
+  observer "max2" $ U.maxmax fList
+  observer "f1" f1
+  observer "f2" f2
+  observer "f3" f3
+  observer "f4" f4
+
+compileTestSpecList = do
+  reify testSpec_lists >>= C.compile C.Params {C.prefix=Just "testSpec_lists", C.verbose=True}
+
 
 runTestSpec = do
   interpret 20 testSpec
