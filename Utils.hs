@@ -2,22 +2,21 @@
 module Utils where
 import Language.Copilot
 
-
 nats :: (Num a, Typed a, Eq a) => Stream a
 nats = [0] ++ (1 + nats)
 
 max :: (Typed a, Ord a) => Stream a -> Stream a -> Stream a
 max x y = mux ( x >= y ) x y
 
-maxmax :: (Num a, Typed a, Ord a) => [Stream a] -> Stream a
-maxmax [] = error "Error in maxmax: list must be nonempty."
-maxmax ls = maxmax' ls 0
+maxList:: (Typed a, Ord a) => [Stream a] -> Stream a
+maxList [] = error "Error in maxList: list must be nonempty."
+maxList ls@(l : _) = max' ls l
   where
-    maxmax' :: (Num a, Typed a, Ord a) => [Stream a] -> Stream a -> Stream a
-    maxmax' [] candidate = candidate
-    maxmax' (x:xs) candidate =
+    max' :: (Typed a, Ord a) => [Stream a] -> Stream a -> Stream a
+    max' [] candidate = candidate
+    max' (x:xs) candidate =
       local (if x > candidate then x else candidate) $ \ candidate' ->
-        maxmax' xs candidate'
+        max' xs candidate'
 
 min :: (Typed a, Ord a) => Stream a -> Stream a -> Stream a
 min x y = mux ( x < y ) x y
@@ -52,6 +51,6 @@ impulse x = y
     x' = [True] ++ x
     y = (x' /= x)
 
--- 
+--
 delay :: (Num a, Typed a) => Stream a -> Stream a
 delay s = [0] ++ s

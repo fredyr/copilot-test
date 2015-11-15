@@ -45,26 +45,27 @@ chipTempExternal :: Stream Int32
 chipTempExternal = chip_DataArray (constW32 1)
 
 maxChipTemp :: Stream Int32
-maxChipTemp = foldr1 U.max [chipTempExternal, chipTempInternal] 
+maxChipTemp = foldr1 U.max [chipTempExternal, chipTempInternal]
 
 -- ADC TEMP SENSORS
 adcTempAMP :: [Stream Int32]
 adcTempAMP = ch
   where
-    ch = map f [2, 3, 4, 5]
+    ch = map f [0 .. 3]
     f = (ntcAMP_extern_lut . U.delay . adc_DataArray . constW32)
 
 adcTempPSU :: [Stream Int32]
 adcTempPSU = ch
   where
-    ch = map f [6, 7]
+    ch = map f [4, 5]
     f = (ntcAMP_extern_lut . U.delay . adc_DataArray . constW32)
 
 adcTempAMBIENT :: [Stream Int32]
-adcTempAMBIENT = [(ntcAMP_extern_lut . U.delay . adc_DataArray $ constW32 8)]
+adcTempAMBIENT = [(ntcAMP_extern_lut . U.delay . adc_DataArray $ constW32 6)]
 
+allTemps = adcTempAMP P.++ adcTempPSU P.++ adcTempAMBIENT
+           P.++ [chipTempExternal, chipTempInternal]
 
-allTemp = adcTempAMP P.++ adcTempPSU P.++ adcTempAMBIENT P.++ [chipTempExternal, chipTempInternal]
 -- Temp protection with hysteresis
 
 protectHyst :: Stream Int32 -> Stream Int32 -> [Stream Int32] -> Stream Bool
@@ -79,7 +80,6 @@ chipHyst = protectHyst 40 45 [chipTempExternal, chipTempInternal]
 
 allHyst = adcHystAMP || adcHystPSU || adcHystAMBIENT || chipHyst
 
-
 ----------------------------------------------
 
 s :: Stream Word32
@@ -93,6 +93,7 @@ u = extern "u" (Just [0, 123..])
 
 f :: Stream Float
 f = extern "f" (Just [11.0, 15.7 ..])
+
 --------------------------------------------------------------------------------
 -- | FAN CONTROL
 
@@ -107,27 +108,16 @@ fanControl temp powerOn = if powerOn then y else 0.0
     influenceTemp = constF 50.0 -- Point where fan increases from idle
     maxTemp       = constF 76.0 -- Point where fan is at max
 
+fan = fanControl (unsafeCast $ U.maxList allTemps) true
+
+--------------------------------------------------------------------------------
 
 testSpec :: Spec
 testSpec = do
   observer "chipTempInternal" chipTempInternal
   observer "chipTempExternal" chipTempExternal
-  --observer "adcTempChanB" adcTempChanB
   observer "maxChipTemp" maxChipTemp
-  -- observer "s" s
-  --observer "s_hyst" shyst
-  --observer "s_imp" simp
-  --observer "t" t
-  --observer "t_hyst" thyst
-  --observer "t_imp" timp
-
-  --observer "u" u
-  --observer "u_hyst" uhyst
-  --observer "m_hyst" mhyst
-  -- trigger "s_muteAllChannels" simp [arg shyst]
   observer "u" u
-
-
   observer "f" f
   observer "fan" $ fanControl f true
   trigger "m_muteAllChannels" mimp [arg mhyst]
@@ -139,7 +129,7 @@ testSpec = do
     simp  = U.impulse shyst
     timp  = U.impulse thyst
     mimp  = U.impulse mhyst
-    
+
 testSpec2 :: Spec
 testSpec2 = do
   observer "chip_DataArray" chipTempExternal
@@ -149,8 +139,8 @@ testSpec2 = do
   observer "AMPtempD" (adcTempAMP !! 3)
   observer "adcHystAMP" adcHystAMP
   trigger "muteAllChannels" imp [arg adcHystAMP]
-  where 
-        imp  = U.impulse adcHystAMP
+  where
+    imp  = U.impulse adcHystAMP
 
 testSpec_Fan :: Spec
 testSpec_Fan = do
@@ -159,6 +149,7 @@ testSpec_Fan = do
 
 tempSpec :: Spec
 tempSpec = do
+  trigger "fanControl_setDuty" true [arg fan]
   trigger "muteAllChannels" imp [arg allHyst]
   observer "AMPtempA" (adcTempAMP !! 0)
   observer "AMPtempB" (adcTempAMP !! 1)
@@ -169,9 +160,8 @@ tempSpec = do
   observer "AMBIENTtempA" (adcTempAMBIENT !! 0)
   observer "CHIPtempExt" chipTempExternal
   observer "CHIPtempInt" chipTempInternal
-
-  where 
-        imp  = U.impulse allHyst
+  where
+    imp  = U.impulse allHyst
 
 f1 :: Stream Int32
 f1 = [45] ++ f1 - 5
@@ -187,7 +177,7 @@ fList = [f1, f2, f3, f4]
 testSpec_lists :: Spec
 testSpec_lists = do
   observer "max1" $ foldl1 U.max fList
-  observer "max2" $ U.maxmax fList
+  observer "max2" $ U.maxList fList
   observer "f1" f1
   observer "f2" f2
   observer "f3" f3
@@ -195,7 +185,6 @@ testSpec_lists = do
 
 compileTestSpecList = do
   reify testSpec_lists >>= C.compile C.Params {C.prefix=Just "testSpec_lists", C.verbose=True}
-
 
 runTestSpec = do
   interpret 20 testSpec
